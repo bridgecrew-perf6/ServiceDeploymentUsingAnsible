@@ -1,0 +1,143 @@
+
+- hosts: all
+  gather_facts: yes
+
+- name: ....Configuring the HAproxy server to handle both UDP and TCP traffic.....
+  hosts: haproxy
+  become: yes
+  tasks:
+    - name: installing haproxy
+      apt:
+        name: haproxy
+        update_cache: yes
+        state: latest
+
+    - name: haproxy configuration to use as load balancer
+      template:
+        src: ./template/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+
+    - name: haproxy restart
+      service:
+        name: "haproxy"
+        state: restarted
+    
+    - name: Installing Nginx for UDP services
+      apt:
+        name: nginx
+        update_cache: yes
+        state: latest
+
+    - name: Configuring the Nginx UDP port
+      template:
+        src: ./template/nginxport.conf
+        dest: /etc/nginx/sites-available/default
+
+    - name: Configuring the Nginx for UDP Load Balancing
+      template:
+        src: ./template/nginxudp.conf
+        dest: /etc/nginx/nginx.conf
+
+    - name: Restarting Nginx
+      service:
+        name: nginx
+        state: restarted 
+
+- name: .....Configuring the Web Servers..... 
+  hosts: webservers
+  become: yes
+  
+  tasks:
+    - name: Update_the_packages
+      apt:
+        update_cache: yes
+
+    - name: Installing the nginx, php7.4 and php7.4-fpm packages
+      apt:
+        name: ['nginx','php7.4','php7.4-fpm']
+        state: latest
+    
+    - name: nginx configuration
+      template:
+        src: ./template/nginxdefault.conf
+        dest: /etc/nginx/sites-available/default
+
+    - name: index.php to the webservers
+      copy:
+        src: ./index.php
+        dest: /var/www/html/index.php
+
+    - name: Restarting the nginx
+      service:
+        name: nginx
+        state: restarted
+
+- name: ......Installing SNMP in the webservers......
+  hosts: snmpD
+  become: yes
+
+  tasks:
+    - name: Installing the SNMPd
+      apt:
+        name: snmpd
+        state: latest
+    
+    - name: Configuring snmpd
+      template: 
+          src: ./template/snmpd.conf
+          dest: /etc/snmp/snmpd.conf 
+    
+    - name: Restarting snmpd
+      service:
+        name: snmpd
+        state: restarted
+
+- name: ....Testing Begins....
+  hosts: haproxy
+  become: yes 
+
+  tasks:
+    #- name: TEST-1 ( testing the web servers )
+    - name: Testing the haproxy load balancing 1st time.
+      shell: "curl localhost"
+      register: "output"
+      args:
+        warn: false
+    - debug: var=output.stdout
+        
+    - name: Testing the haproxy load balancing 2nd time.
+      shell: "curl localhost"
+      register: "output"
+      args:
+        warn: false
+    - debug: var=output.stdout
+
+    - name: Testing the haproxy load balancing 3rd time.
+      shell: "curl localhost"
+      register: "output"
+      args:
+        warn: false
+    - debug: var=output.stdout
+
+    - name: Install snmpd
+      apt: 
+        name: snmp
+        state: latest
+
+    #- name: TEST -2 (testing the snmp)
+    - name: "Testing the SNMP 1st time"
+      shell: "snmpget -t 1 -r 1 -v2c -c public localhost:1161 1.3.6.1.2.1.1.1.0"
+      register: "output"
+    - debug: var=output.stdout_lines
+          
+    - name: "Testing the SNMP 2nd time"
+      shell: "snmpget -t 1 -r 1 -v2c -c public localhost:1161 1.3.6.1.2.1.1.1.0"
+      register: "output"
+    - debug: var=output.stdout_lines
+        
+    - name: "Testing the SNMP 3rd time"
+      shell: "snmpget -t 1 -r 1 -v2c -c public localhost:1161 1.3.6.1.2.1.1.1.0"
+      register: "output"
+    - debug: var=output.stdout_lines
+
+
