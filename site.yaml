@@ -119,7 +119,7 @@
         warn: false
     - debug: var=output.stdout
 
-    - name: Install snmpd
+    - name: Install SNMP
       apt: 
         name: snmp
         state: latest
